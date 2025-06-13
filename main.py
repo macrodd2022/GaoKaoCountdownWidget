@@ -1,3 +1,5 @@
+import ctypes
+import os
 import sys
 from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel
@@ -9,13 +11,30 @@ class GaoKaoCountdownWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        # 设置窗口属性
+        # 设置窗口无边框和透明背景
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        # 避免使用WindowStaysOnBottomHint,防止争夺底层
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnBottomHint |
-            Qt.WindowType.Widget if sys.platform == 'darwin' else Qt.WindowType.Tool
+            Qt.WindowType.WindowDoesNotAcceptFocus
         )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if os.name == 'nt':
+            def set_window_pos():
+                hwnd = self.winId().__int__()
+                # 稍高于最底层的值
+                ctypes.windll.user32.SetWindowPos(hwnd, 2, 0, 0, 0, 0, 0x0214)
+
+            QTimer.singleShot(100, set_window_pos)
+        else:
+            QTimer.singleShot(100, self.lower)
+
+        if sys.platform == 'darwin':
+            self.setWindowFlag(Qt.WindowType.Widget, True)
+        else:
+            self.setWindowFlag(Qt.WindowType.Tool, True)
+
         self.setFixedSize(640, 50)
 
         # 设置高考日期（6月7日）

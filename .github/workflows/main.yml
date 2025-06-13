@@ -19,7 +19,7 @@ jobs:
       - name: Install PyQt6
         run: pip install PyQt6
       - name: Build EXE
-        run: pyinstaller main.py --onefile
+        run: pyinstaller main.py --onefile --noconsole
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
