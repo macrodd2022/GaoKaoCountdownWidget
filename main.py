@@ -1,15 +1,19 @@
 import ctypes
 import os
 import sys
-from datetime import datetime
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel
+import json
+from datetime import datetime, timedelta
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QInputDialog, QMessageBox
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush, QLinearGradient
 
 
 class GaoKaoCountdownWidget(QWidget):
-    def __init__(self):
+    def __init__(self, target: str, date: datetime):
         super().__init__()
+
+        self.target = target
+        self.date = date
 
         # 设置窗口无边框和透明背景
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -36,11 +40,6 @@ class GaoKaoCountdownWidget(QWidget):
             self.setWindowFlag(Qt.WindowType.Tool, True)
 
         self.setFixedSize(640, 50)
-
-        # 设置高考日期（6月7日）
-        self.gaokao_date = datetime(datetime.now().year, 6, 7)
-        if datetime.now() > self.gaokao_date:
-            self.gaokao_date = datetime(datetime.now().year + 1, 6, 7)
 
         # 创建UI
         self.init_ui()
@@ -72,13 +71,13 @@ class GaoKaoCountdownWidget(QWidget):
 
     def update_countdown(self):
         now = datetime.now()
-        delta = self.gaokao_date - now
+        delta = self.date - now
         days = delta.days + 1
 
         if days < 0:
-            text = "高考已结束!"
+            text = f"{self.target}已结束!"
         else:
-            text = f"距离{self.gaokao_date.year}年高考还有{days}天"
+            text = f"距离{self.date.year}{self.target}还有{days}天"
 
         self.label.setText(text)
 
@@ -113,6 +112,52 @@ class GaoKaoCountdownWidget(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    widget = GaoKaoCountdownWidget()
+
+    if not os.path.exists("./config.json"):
+        target = "高考"
+        date = datetime(datetime.now().year, 6, 7)
+        if datetime.now() - date > timedelta(days=5):
+            date = datetime(date.year + 1, 6, 7)
+
+        target_text, ok = QInputDialog.getText(None, "输入目标", "目标（默认高考）")
+        if ok and target_text:
+            target = target_text[:8]
+
+        date_text, ok = QInputDialog.getText(None, "输入时间", "时间（默认0607）")
+        if ok and date_text:
+            try:
+                if not date_text.isdigit() or len(date_text) != 4:
+                    raise ValueError
+                date = datetime(datetime.now().year, int(date_text[:2]), int(date_text[2:]))
+                if datetime.now() - date > timedelta(days=5):
+                    date = datetime(date.year + 1, date.month, date.day)
+            except ValueError:
+                QMessageBox.critical(None, "错误", "时间格式无效", QMessageBox.StandardButton.Yes)
+                sys.exit(0)
+
+        config = {
+            "target": target,
+            "date": f"{date.month:02}{date.day:02}",
+        }
+
+        json.dump(config, open("./config.json", "w", encoding="utf-8"), indent=4, ensure_ascii=False)
+        QMessageBox.information(None, "配置保存成功", "请不要移除本程序同目录下的config.json，除非你要重新修改配置。",
+                                QMessageBox.StandardButton.Yes)
+
+    else:
+        try:
+            config = json.load(open("./config.json", "r", encoding="utf-8"))
+            target = config["target"]
+            date = datetime(datetime.now().year, int(config["date"][:2]), int(config["date"][2:]))
+            if datetime.now() - date > timedelta(days=5):
+                date = datetime(date.year + 1, date.month, date.day)
+        except (json.decoder.JSONDecodeError, KeyError, ValueError):
+            QMessageBox.critical(None, "配置文件有误", "请移除本程序同目录下的config.json，再重新运行。",
+                                 QMessageBox.StandardButton.Yes)
+            sys.exit(0)
+        QMessageBox.information(None, "正在使用配置文件", "如果你要重新修改配置，请移除本程序同目录下的config.json。",
+                                QMessageBox.StandardButton.Yes)
+
+    widget = GaoKaoCountdownWidget(target, date)
     widget.show()
     sys.exit(app.exec())
